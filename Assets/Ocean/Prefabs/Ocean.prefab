@@ -1,0 +1,90 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &101768
+GameObject:
+  m_ObjectHideFlags: 0
+  m_PrefabParentObject: {fileID: 0}
+  m_PrefabInternal: {fileID: 100100000}
+  serializedVersion: 4
+  m_Component:
+  - 4: {fileID: 401768}
+  - 114: {fileID: 11401768}
+  m_Layer: 4
+  m_Name: Ocean
+  m_TagString: Ocean
+  m_Icon: {fileID: 2800000, guid: 04e885ab63bc1f74eb62634b62e06d19, type: 3}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &401768
+Transform:
+  m_ObjectHideFlags: 1
+  m_PrefabParentObject: {fileID: 0}
+  m_PrefabInternal: {fileID: 100100000}
+  m_GameObject: {fileID: 101768}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_RootOrder: 0
+--- !u!114 &11401768
+MonoBehaviour:
+  m_ObjectHideFlags: 1
+  m_PrefabParentObject: {fileID: 0}
+  m_PrefabInternal: {fileID: 100100000}
+  m_GameObject: {fileID: 101768}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c154aa817ceb43048bc1710ca3a095af, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  fixedTiles: 1
+  fTilesDistance: 2
+  fTilesLod: 5
+  width: 32
+  height: 32
+  renderTexWidth: 512
+  renderTexHeight: 512
+  scale: 3
+  speed: .300000012
+  wakeDistance: 8
+  size: {x: 128, y: 10, z: 128}
+  tiles: 11
+  pWindx: 20
+  pWindy: 30
+  choppy_scale: 7
+  material: {fileID: 2100000, guid: c541ac636f7ff4f20aeb8747a4729d2b, type: 2}
+  followMainCamera: 1
+  m_ClipPlaneOffset: .0700000003
+  renderLayers:
+    serializedVersion: 2
+    m_Bits: 257
+  player: {fileID: 0}
+  sun: {fileID: 0}
+  SunDir: {x: 0, y: 0, z: 0, w: 0}
+  surfaceColor: {r: .298039228, g: .549019635, b: .58431375, a: 1}
+  waterColor: {r: .20784314, g: .380392164, b: .403921574, a: 1}
+  oceanShader: {fileID: 4800000, guid: 01170220c6c9d45f7ae3b4fef8af5fdb, type: 3}
+  renderReflection: 1
+  renderRefraction: 1
+  waveSpeed: .5
+  dinamicWaves: 0
+  humidity: 1
+  mist: {fileID: 100002, guid: de156c31f51a89643aa9c0256677e1dc, type: 2}
+  mistLow: {fileID: 100000, guid: 8d2d7b990b9ce78439acae0d40a9dbac, type: 2}
+  mistClouds: {fileID: 160538, guid: dfda8c2389014254a9760829880e1399, type: 2}
+  mistEnabled: 1
+  waterInteractionEffects: 1
+--- !u!1001 &100100000
+Prefab:
+  m_ObjectHideFlags: 1
+  serializedVersion: 2
+  m_Modification:
+    m_TransformParent: {fileID: 0}
+    m_Modifications: []
+    m_RemovedComponents: []
+  m_ParentPrefab: {fileID: 0}
+  m_RootGameObject: {fileID: 101768}
+  m_IsPrefabParent: 1
+  m_IsExploded: 1
