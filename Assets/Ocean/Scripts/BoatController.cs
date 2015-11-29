@@ -47,12 +47,9 @@ public class BoatController : Boyancy{
             float motorRotationAngle = 0F;
 			float motorMaxRotationAngle = 70;
 
+			motorRotationAngle = - horizontalInput * motorMaxRotationAngle;
 
-			if (horizontalInput > 0)
-				motorRotationAngle = -motorMaxRotationAngle;
-			else if (horizontalInput < 0)
-				motorRotationAngle = motorMaxRotationAngle;
-         
+
             foreach (GameObject motor in m_motors)
             {
 				float currentAngleY = motor.transform.localEulerAngles.y;
