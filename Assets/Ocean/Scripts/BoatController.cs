@@ -16,8 +16,10 @@ public class BoatController : Boyancy{
     [SerializeField] private float m_accelerationTorqueFactor = 35F;
 	[SerializeField] private float m_turningTorqueFactor = 35F;
 
-  
+	private float m_verticalInput = 0F;
+	private float m_horizontalInput = 0F;
     private Rigidbody m_rigidbody;
+	private Vector2 m_androidInputInit;
 
     protected override void Start()
     {
@@ -26,20 +28,49 @@ public class BoatController : Boyancy{
         m_rigidbody = GetComponent<Rigidbody>();
         m_rigidbody.drag = 1;
         m_rigidbody.angularDrag = 1;
-    }
 
-    protected override void FixedUpdate () {
+		initPosition ();
+	}
 
-        base.FixedUpdate();
+	public void initPosition()
+	{
+		#if UNITY_ANDROID
+		m_androidInputInit.x = Input.acceleration.y;
+		m_androidInputInit.y = Input.acceleration.x;
+		#endif
+	}
 
-        float verticalInput = Input.GetAxisRaw("Vertical");
-        float horizontalInput = Input.GetAxisRaw("Horizontal");
+	void Update()
+	{
+		#if UNITY_ANDROID
+		Vector2 touchInput = Vector2.zero;
+		touchInput.x =  -(Input.acceleration.y - m_androidInputInit.y);
+		touchInput.y =  Input.acceleration.x - m_androidInputInit.x;
 
-        m_rigidbody.AddRelativeForce(Vector3.forward * verticalInput * m_accelerationFactor);
+		if (touchInput.sqrMagnitude > 1)
+			touchInput.Normalize();
+
+		setInputs (touchInput.x, touchInput.y);
+		#else
+		setInputs (Input.GetAxisRaw("Vertical"), Input.GetAxisRaw("Horizontal"));
+		#endif
+	}
+
+	public void setInputs(float iVerticalInput, float iHorizontalInput)
+	{
+		m_verticalInput = iVerticalInput;
+		m_horizontalInput = iHorizontalInput;
+	}
+
+	protected override void FixedUpdate()
+	{
+		base.FixedUpdate();
+
+		m_rigidbody.AddRelativeForce(Vector3.forward * m_verticalInput * m_accelerationFactor);
         m_rigidbody.AddRelativeTorque(
-            verticalInput * -m_accelerationTorqueFactor,
-            horizontalInput * m_turningFactor,
-            horizontalInput * -m_turningTorqueFactor
+			m_verticalInput * -m_accelerationTorqueFactor,
+			m_horizontalInput * m_turningFactor,
+			m_horizontalInput * -m_turningTorqueFactor
         );
 
         if(m_motors.Count > 0)
@@ -47,8 +78,7 @@ public class BoatController : Boyancy{
             float motorRotationAngle = 0F;
 			float motorMaxRotationAngle = 70;
 
-			motorRotationAngle = - horizontalInput * motorMaxRotationAngle;
-
+			motorRotationAngle = - m_horizontalInput * motorMaxRotationAngle;
 
             foreach (GameObject motor in m_motors)
             {
@@ -56,7 +86,7 @@ public class BoatController : Boyancy{
 				if (currentAngleY > 180.0f)
 					currentAngleY -= 360.0f;
 
-				float localEulerAngleY = Mathf.Lerp(currentAngleY, motorRotationAngle, Time.deltaTime*10);
+				float localEulerAngleY = Mathf.Lerp(currentAngleY, motorRotationAngle, Time.deltaTime * 10);
 				motor.transform.localEulerAngles = new Vector3(
 					motor.transform.localEulerAngles.x,
 					localEulerAngleY,
@@ -67,7 +97,7 @@ public class BoatController : Boyancy{
 
 		if (m_enableAudio && m_boatAudioSource != null) 
 		{
-			float pitchLevel = verticalInput * m_boatAudioMaxPitch;
+			float pitchLevel = m_verticalInput * m_boatAudioMaxPitch;
 			if (pitchLevel < m_boatAudioMinPitch)
 				pitchLevel = m_boatAudioMinPitch;
 			float smoothPitchLevel = Mathf.Lerp(m_boatAudioSource.pitch, pitchLevel, Time.deltaTime);
