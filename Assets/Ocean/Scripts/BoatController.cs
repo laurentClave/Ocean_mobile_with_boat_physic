@@ -4,17 +4,20 @@ using System.Collections.Generic;
 
 public class BoatController : Boyancy{
 
-    [SerializeField] private List<GameObject> m_motors;
+	[Header("Physic :")]
+	[SerializeField] private float m_accelerationFactor = 2.0F;
+	[SerializeField] private float m_turningFactor = 2.0F;
+	[SerializeField] private float m_accelerationTorqueFactor = 35F;
+	[SerializeField] private float m_turningTorqueFactor = 35F;
 
+	[Header("Audio :")]
 	[SerializeField] private bool m_enableAudio = true;
 	[SerializeField] private AudioSource m_boatAudioSource;
 	[SerializeField] private float m_boatAudioMinPitch = 0.4F;
 	[SerializeField] private float m_boatAudioMaxPitch = 1.2F;
 
-	[SerializeField] private float m_accelerationFactor = 2.0F;
-	[SerializeField] private float m_turningFactor = 2.0F;
-    [SerializeField] private float m_accelerationTorqueFactor = 35F;
-	[SerializeField] private float m_turningTorqueFactor = 35F;
+	[Header("Other :")]
+	[SerializeField] private List<GameObject> m_motors;
 
 	private float m_verticalInput = 0F;
 	private float m_horizontalInput = 0F;

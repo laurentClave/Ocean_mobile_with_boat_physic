@@ -3,16 +3,17 @@ using System.Collections.Generic;
 
 public class Boyancy : MonoBehaviour
 {
-
+	
 	private Ocean ocean;
 	private float mag = 1f;
-	public float ypos = 0.0f;
 	private List<Vector3> blobs;
 	private float ax = 2.0f;
 	private float ay = 2.0f;
 	private bool engine = false;
 	private List<float> sinkForces;
 
+	[Header("Boyancy :")]
+	public float ypos = 0.0f;
 	[SerializeField] private float dampCoeff = .2f;
 	[SerializeField] private bool sink = false;
 	[SerializeField] private float sinkForce = 3;
