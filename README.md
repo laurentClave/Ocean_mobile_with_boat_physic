@@ -1,4 +1,4 @@
-# Ocean mobile with boat physic
+# Ocean mobile with boat physic controller
 
 ![Alt text](http://img15.hostingpics.net/pics/60759920151130191857ProgramManager.png)
 
