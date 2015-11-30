@@ -18,6 +18,7 @@ ModelImporter:
     100020: Motor_L
     100022: Motor_R
     100024: Glasses
+    100026: Glass
     400000: //RootNode
     400002: Cube
     400004: Cube_001
@@ -31,6 +32,7 @@ ModelImporter:
     400020: Motor_L
     400022: Motor_R
     400024: Glasses
+    400026: Glass
     2300000: //RootNode
     2300002: Cube
     2300004: Cube_001
@@ -44,6 +46,7 @@ ModelImporter:
     2300020: Motor_L
     2300022: Motor_R
     2300024: Glasses
+    2300026: Glass
     3300000: //RootNode
     3300002: Cube
     3300004: Cube_001
@@ -57,6 +60,7 @@ ModelImporter:
     3300020: Motor_L
     3300022: Motor_R
     3300024: Glasses
+    3300026: Glass
     4300000: Cube
     4300002: Cube_001
     4300004: Cube_002
@@ -69,6 +73,7 @@ ModelImporter:
     4300018: Motor_L
     4300020: Motor_R
     4300022: Glasses
+    4300024: Glass
     7400000: Default Take
     9500000: //RootNode
   materials:
