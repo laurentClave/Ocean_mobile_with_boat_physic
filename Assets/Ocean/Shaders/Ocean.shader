@@ -100,6 +100,9 @@ Shader "Mobile/Ocean" {
     			float specular = pow(max(dot(halfVec, tangentNormal.xyz), 0.0), 250.0);
 
 				result.rgb = lerp(refraction, reflection, fresnelTerm) + clamp(foam.r, 0.0, 1.0) + specular;
+
+				UNITY_APPLY_FOG(i.fogCoord, result);
+
     			return result;
 			}
 
@@ -186,6 +189,8 @@ Shader "Mobile/Ocean" {
                 result.a = _WaterLod1Alpha;
 				result.rgb = lerp(tex, _SurfaceColorLod1, fresnelTerm) + clamp(foam.r, 0.0, 1.0) + specular;
                 
+				UNITY_APPLY_FOG(i.fogCoord, result);
+
     			return result;
 			}
 			ENDCG

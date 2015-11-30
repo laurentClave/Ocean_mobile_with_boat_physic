@@ -97,7 +97,9 @@ public class BoatController : Boyancy{
 
 		if (m_enableAudio && m_boatAudioSource != null) 
 		{
-			float pitchLevel = m_verticalInput * m_boatAudioMaxPitch;
+            m_boatAudioSource.enabled = m_verticalInput != 0;
+
+            float pitchLevel = m_verticalInput * m_boatAudioMaxPitch;
 			if (pitchLevel < m_boatAudioMinPitch)
 				pitchLevel = m_boatAudioMinPitch;
 			float smoothPitchLevel = Mathf.Lerp(m_boatAudioSource.pitch, pitchLevel, Time.deltaTime);
