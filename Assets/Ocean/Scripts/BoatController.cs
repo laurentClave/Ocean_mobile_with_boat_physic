@@ -19,7 +19,7 @@ public class BoatController : Boyancy{
 	private float m_verticalInput = 0F;
 	private float m_horizontalInput = 0F;
     private Rigidbody m_rigidbody;
-	private Vector2 m_androidInputInit;
+	private Vector3 m_androidInputInit;
 
     protected override void Start()
     {
@@ -35,25 +35,23 @@ public class BoatController : Boyancy{
 	public void initPosition()
 	{
 		#if UNITY_ANDROID
-		m_androidInputInit.x = Input.acceleration.y;
-		m_androidInputInit.y = Input.acceleration.x;
+		m_androidInputInit = Input.acceleration;
 		#endif
 	}
 
 	void Update()
 	{
-		#if UNITY_ANDROID
-		Vector2 touchInput = Vector2.zero;
-		touchInput.x =  -(Input.acceleration.y - m_androidInputInit.y);
-		touchInput.y =  Input.acceleration.x - m_androidInputInit.x;
-
+		#if UNITY_EDITOR 
+		setInputs (Input.GetAxisRaw("Vertical"), Input.GetAxisRaw("Horizontal"));
+		#elif UNITY_ANDROID
+		Vector3 touchInput = Input.acceleration - m_androidInputInit;
+		
 		if (touchInput.sqrMagnitude > 1)
 			touchInput.Normalize();
-
-		setInputs (touchInput.x, touchInput.y);
-		#else
-		setInputs (Input.GetAxisRaw("Vertical"), Input.GetAxisRaw("Horizontal"));
+		
+		setInputs (-touchInput.y, touchInput.x);
 		#endif
+
 	}
 
 	public void setInputs(float iVerticalInput, float iHorizontalInput)
