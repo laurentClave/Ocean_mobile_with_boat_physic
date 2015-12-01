@@ -17,6 +17,7 @@ public class Ocean : MonoBehaviour
 	public float speed = 0.7f;
 	public float wakeDistance = 5f;
 	public Vector3 size = new Vector3 (150.0f, 1.0f, 150.0f);
+	private Bounds bounds;
 	public int tiles = 2;
 
     public static Ocean Singleton { get; private set; }
@@ -88,6 +89,9 @@ public class Ocean : MonoBehaviour
 	private GameObject child;
 	private List<List<Mesh>> tiles_LOD;
 	private List<List<Mesh>> fTiles_LOD;
+
+	private List<List<Renderer>> rtiles_LOD;
+
 	private int g_height;
 	private int g_width;
 	private int n_width;
@@ -111,6 +115,10 @@ public class Ocean : MonoBehaviour
 	public Transform player;
 	public Transform sun;
 	public Vector4 SunDir;
+
+	private Vector4 oldSunDir;
+	private Light sunLight;
+	private Color oldSunColor;
 
 	public Color surfaceColor = new Color (0.3f, 0.5f, 0.3f, 1.0f);
 	public Color waterColor = new Color (0.3f, 0.4f, 0.3f);
@@ -266,6 +274,10 @@ public class Ocean : MonoBehaviour
     void Start ()
 	{
 
+		sunLight = sun.GetComponent<Light>();
+
+		bounds = new Bounds(new Vector3(size.x/2f,0f,size.z/2f),new Vector3(size.x+size.x*0.05f,0,size.z+size.z*0.05f));
+
         // normal map size
         n_width = 128;
 		n_height = 128;
@@ -294,8 +306,12 @@ public class Ocean : MonoBehaviour
 		tiles_LOD = new List<List<Mesh>>();
 		fTiles_LOD = new List<List<Mesh>>();
 
+		rtiles_LOD = new List<List<Renderer>>();
+
+
 		for (int L0D=0; L0D<max_LOD; L0D++) {
 			tiles_LOD.Add (new List<Mesh>());
+			rtiles_LOD.Add (new List<Renderer>());
 		}
 
 		for (int L0D=0; L0D<max_LOD; L0D++) {
@@ -303,6 +319,8 @@ public class Ocean : MonoBehaviour
 		}
 
 		GameObject tile;
+
+		int ntl = LayerMask.NameToLayer ("Water");
 
 		int chDist; // Chebychev distance	
 		for (int y=0; y<tiles; y++) {
@@ -328,16 +346,20 @@ public class Ocean : MonoBehaviour
 			
 				//Also we don't want these to be drawn while doing refraction/reflection passes,
 				//so we'll add the to the water layer for easy filtering.
-				tile.layer = LayerMask.NameToLayer ("Water");
+				tile.layer = ntl;
 			
 				// Determine which L0D the tile belongs
 				if(fixedTiles){
-					if(chDist < fTilesDistance)
-					    tiles_LOD[chDist].Add((tile.GetComponent<MeshFilter>()).mesh);
-				    else 
-						fTiles_LOD[fTilesLod].Add((tile.GetComponent<MeshFilter>()).mesh);
+					if(chDist < fTilesDistance) {
+							tiles_LOD[chDist].Add((tile.GetComponent<MeshFilter>()).mesh);
+							rtiles_LOD[chDist].Add( tile.GetComponent<Renderer>());
+						}
+				    else {
+							fTiles_LOD[fTilesLod].Add((tile.GetComponent<MeshFilter>()).mesh);
+						}
 				}else{
 					tiles_LOD[chDist].Add((tile.GetComponent<MeshFilter>()).mesh);
+					rtiles_LOD[chDist].Add( tile.GetComponent<Renderer>());
 				}
 			}
 		}
@@ -426,6 +448,9 @@ public class Ocean : MonoBehaviour
 				Mesh meshLOD = tiles_LOD [L0D][k];
 				meshLOD.vertices = verticesLOD;
 				meshLOD.uv = uvLOD;
+
+				meshLOD.bounds = bounds; 
+
 			}
 			for (int k=0; k<fTiles_LOD[L0D].Count; k++) {
 				Mesh meshLOD = fTiles_LOD [L0D][k];
@@ -480,7 +505,8 @@ public class Ocean : MonoBehaviour
 		if(material != null){
 			if(sun != null){
 		        SunDir = sun.transform.forward;
-			    material.SetVector ("_SunDir", SunDir);
+				if(SunDir != oldSunDir) {  material.SetVector ("_SunDir", SunDir); oldSunDir = SunDir; }
+				if(sunLight.color != oldSunColor) { material.SetColor("_SunColor", sunLight.color); oldSunColor = sunLight.color; }
 			}
 			material.SetVector("_WaveOffset", new Vector4 (GetFloat(), GetFloat(), GetFloat(), GetFloat()));
 		}
@@ -689,10 +715,13 @@ public class Ocean : MonoBehaviour
 				}			
 			}
 			for (int k=0; k< tiles_LOD[L0D].Count; k++) {
-				Mesh meshLOD = tiles_LOD [L0D][k];
-				meshLOD.vertices = verticesLOD;
-				meshLOD.normals = normalsLOD;
-				meshLOD.tangents = tangentsLOD;
+				//update mesh only if visible
+				if(rtiles_LOD[L0D][k].isVisible) {
+					Mesh meshLOD = tiles_LOD [L0D][k];
+					meshLOD.vertices = verticesLOD;
+					meshLOD.normals = normalsLOD;
+					meshLOD.tangents = tangentsLOD;
+				}
 			}	
 		}
 	}
@@ -906,8 +935,7 @@ public class Ocean : MonoBehaviour
 			// Reflection render texture
 			if( !m_ReflectionTexture || m_OldReflectionTextureSize != renderTexWidth )
 			{
-				if( m_ReflectionTexture )
-					DestroyImmediate( m_ReflectionTexture );
+				if( m_ReflectionTexture ) DestroyImmediate( m_ReflectionTexture );
 				m_ReflectionTexture = new RenderTexture( renderTexWidth, renderTexHeight, 16 );
 				m_ReflectionTexture.name = "__WaterReflection" + GetInstanceID();
 				m_ReflectionTexture.isPowerOfTwo = true;
@@ -935,8 +963,7 @@ public class Ocean : MonoBehaviour
 			// Refraction render texture
 			if( !m_RefractionTexture || m_OldRefractionTextureSize != renderTexWidth )
 			{
-				if( m_RefractionTexture )
-					DestroyImmediate( m_RefractionTexture );
+				if( m_RefractionTexture ) DestroyImmediate( m_RefractionTexture );
 				m_RefractionTexture = new RenderTexture( renderTexWidth, renderTexHeight, 16 );
 				m_RefractionTexture.name = "__WaterRefraction" + GetInstanceID();
 				m_RefractionTexture.isPowerOfTwo = true;
