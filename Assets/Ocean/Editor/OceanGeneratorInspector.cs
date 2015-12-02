@@ -18,6 +18,8 @@ public class OceanGeneratorInspector : Editor
 	private Texture2D logo;
 	private Texture2D back;
 
+	private int oldEveryXframe;
+
 	private string GetPluginPath() {
 		MonoScript ms = MonoScript.FromScriptableObject( this );
 		string scriptPath = AssetDatabase.GetAssetPath( ms );
@@ -75,7 +77,7 @@ public class OceanGeneratorInspector : Editor
 		    EditorGUILayout.BeginHorizontal(); 
 		    float bannerWidth = 256;
 		    GUILayout.Space((Screen.width * 0.5f) - (bannerWidth * 0.55f));
-		    EditorGUILayout.LabelField(new GUIContent( logo ), GUILayout.Width( bannerWidth), GUILayout.Height( bannerWidth * 0.5f ));
+		    EditorGUILayout.LabelField(new GUIContent( logo ), GUILayout.Width( bannerWidth), GUILayout.Height( bannerWidth * 0.40f ));
 		    EditorGUILayout.EndHorizontal();
 
 		    GUILayout.Space(-20);
@@ -170,9 +172,9 @@ public class OceanGeneratorInspector : Editor
 		    EditorGUILayout.EndVertical();
 		
 		    EditorGUILayout.BeginHorizontal();
-		    EditorGUILayout.LabelField("Dinamic waves");
+		    EditorGUILayout.LabelField("Dynamic waves");
 
-		    ocean.dinamicWaves = EditorGUILayout.Toggle(ocean.dinamicWaves);
+		    ocean.dynamicWaves = EditorGUILayout.Toggle(ocean.dynamicWaves);
 		    EditorGUILayout.EndHorizontal();
 		
 		    EditorGUILayout.LabelField("Wind power");
@@ -187,6 +189,14 @@ public class OceanGeneratorInspector : Editor
 		    GUILayout.Space(-100);
 		    ocean.pWindy = EditorGUILayout.FloatField(ocean.pWindy);
 		    EditorGUILayout.EndHorizontal();
+
+			GUILayout.Space(25);
+		    EditorGUILayout.BeginHorizontal();
+		    EditorGUILayout.LabelField("Spread along frames");
+
+		    ocean.spreadAlongFrames = EditorGUILayout.Toggle(ocean.spreadAlongFrames);
+		    EditorGUILayout.EndHorizontal();
+
 
 		EditorGUILayout.EndVertical();
 		GUILayout.FlexibleSpace();
@@ -291,9 +301,34 @@ public class OceanGeneratorInspector : Editor
 		    GUI.backgroundColor = new Color(1f, 1f, 0f, 1f);
 		    GUI.contentColor = new Color(1f, 1f, 0f, 1f);
 
-		    GUILayout.Space(35);
+			
 
-		    EditorGUILayout.LabelField("Editor script by 'MindBlocks Studio'", GUILayout.MinWidth(170));
+		    GUILayout.Space(25);
+			DrawSeparator();
+			GUI.contentColor = Color.white;
+			GUI.backgroundColor = Color.white;
+
+			if(ocean.spreadAlongFrames) {
+				EditorGUILayout.LabelField("Calc waves every x frames:");
+				EditorGUILayout.BeginHorizontal();
+				ocean.everyXframe = (int)EditorGUILayout.Slider(ocean.everyXframe, 3, 8);
+
+				if(oldEveryXframe != ocean.everyXframe) {
+					oldEveryXframe = ocean.everyXframe;
+					if(ocean.everyXframe > 3) { ocean.fr1=0; ocean.fr2=1; ocean.fr3=2; ocean.fr4=3; }
+					 else {ocean.fr1=0; ocean.fr2=1; ocean.fr3=2; ocean.fr4=2;}
+				}
+
+				EditorGUILayout.EndHorizontal();
+			} else {
+				EditorGUILayout.LabelField("");
+				EditorGUILayout.LabelField("");
+			}
+
+			GUILayout.Space(15);
+
+
+		   // EditorGUILayout.LabelField("Editor script by 'MindBlocks Studio'", GUILayout.MinWidth(170));
 
 		EditorGUILayout.EndVertical();
 		GUILayout.FlexibleSpace();

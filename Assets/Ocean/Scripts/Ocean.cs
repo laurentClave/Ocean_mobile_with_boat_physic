@@ -1,15 +1,34 @@
+//comment this out if you dont want multithreading or having problems with it
+#define THREADS
+
 using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
+
+
 
 public class Ocean : MonoBehaviour
 {
+	private const float pix2 =  2.0f * Mathf.PI;
+	public bool spreadAlongFrames = true;
+	//values 3 or 4 are recommended when vsync is used!
+	public int everyXframe = 5;
+	public int fr1, fr2, fr3, fr4;
+	private bool ticked = false;
+
 	public bool fixedTiles;
 	public int fTilesDistance = 2;
 	public int fTilesLod = 5;
 	public int width = 32;
 	public int height = 32;
+	private int wh;
+	private float hhalf;
+	private float whalf;
+	private int gwgh;
+	private int offset;
+
 	public int renderTexWidth = 128;
 	public int renderTexHeight = 128;
 	public float scale = 0.1f;
@@ -79,10 +98,10 @@ public class Ocean : MonoBehaviour
 	private ComplexF[] h0;
 	private ComplexF[] t_x;
 	private ComplexF[] n0;
-	private ComplexF[] n_x;
-	private ComplexF[] n_y;
+	//private ComplexF[] n_x;
+	//private ComplexF[] n_y;
 	private ComplexF[] data;
-	private Color[] pixelData;
+	//private Color[] pixelData;
 	private Vector3[] baseHeight;
 
 	private Mesh baseMesh;
@@ -98,7 +117,7 @@ public class Ocean : MonoBehaviour
 	private int n_height;
     private Vector2 sizeInv;
 	
-	private bool normalDone = false;
+	//private bool normalDone = false;
 	private bool reflectionRefractionEnabled = false;
 	public float m_ClipPlaneOffset = 0.07f;
 	private RenderTexture m_ReflectionTexture = null;
@@ -136,7 +155,7 @@ public class Ocean : MonoBehaviour
 	private int swich;
 
 	//Humidity values
-	public bool dinamicWaves;
+	public bool dynamicWaves;
 	public static float wind;
 	public float humidity;
 	private float prevValue = 0.1f;
@@ -150,8 +169,8 @@ public class Ocean : MonoBehaviour
 	public bool mistEnabled;
 	public bool waterInteractionEffects;
 
-	private float GetHumidity() {
-		float time = Time.time;
+	private float GetHumidity(float time) {
+		//float time = Time.time;
 		
 		int intTime = (int)(time * timeFreq);
 		int intPrevTime = (int)(prevTime * timeFreq);
@@ -271,8 +290,15 @@ public class Ocean : MonoBehaviour
         Singleton = this;
     }
 
+
     void Start ()
 	{
+		
+		ticked = false;
+
+		fr1 =0; fr2 = 1; fr3 = 2; fr4 = 3;
+
+		if(everyXframe<4) fr4 = 2;
 
 		sunLight = sun.GetComponent<Light>();
 
@@ -281,6 +307,11 @@ public class Ocean : MonoBehaviour
         // normal map size
         n_width = 128;
 		n_height = 128;
+
+		wh = width*height;
+
+		hhalf=height/2f;
+		whalf=width/2f;
 		
 		//Avoid division every frame, so do it only once on start up
 		sizeInv = new Vector2(1f / size.x,  1f / size.z);
@@ -288,7 +319,7 @@ public class Ocean : MonoBehaviour
 		SetupOffscreenRendering ();
 
 	
-		pixelData = new Color[n_width * n_height];
+		//pixelData = new Color[n_width * n_height];
 
 		// Init the water height matrix
 		data = new ComplexF[width * height];
@@ -296,12 +327,15 @@ public class Ocean : MonoBehaviour
 		// tangent
 		t_x = new ComplexF[width * height];
 
-		n_x = new ComplexF[n_width * n_height];
-		n_y = new ComplexF[n_width * n_height];
+		//n_x = new ComplexF[n_width * n_height];
+		//n_y = new ComplexF[n_width * n_height];
 
 		// Geometry size
 		g_height = height + 1;	
 		g_width = width + 1;
+
+		gwgh = g_width*g_height-1;
+		offset = g_width * (g_height - 1);
 
 		tiles_LOD = new List<List<Mesh>>();
 		fTiles_LOD = new List<List<Mesh>>();
@@ -500,8 +534,15 @@ public class Ocean : MonoBehaviour
 		player = tr;
 	}
 
-	void Update ()
-	{
+
+
+	private Vector3 centerOffset;
+	private Thread th0, th1, th2, th3;
+	private bool flipflop;
+	
+
+	void Update (){
+
 		if(material != null){
 			if(sun != null){
 		        SunDir = sun.transform.forward;
@@ -511,218 +552,486 @@ public class Ocean : MonoBehaviour
 			material.SetVector("_WaveOffset", new Vector4 (GetFloat(), GetFloat(), GetFloat(), GetFloat()));
 		}
 
-		if(dinamicWaves)
-		    humidity = GetHumidity();
+		#if THREADS
+			if(spreadAlongFrames) updWithThreads(); else updNoThreads();
+		#else
+			updNoThreads();
+		#endif
+	}
 
-		wind = humidity;
+	void updWithThreads() {
 
-		SetWaves(wind);
+		int fint = Time.frameCount % everyXframe;
 
-		if (followMainCamera && player != null) {
-			
-			Vector3 centerOffset;
-			centerOffset.x = Mathf.Floor(player.position.x * sizeInv.x) *  size.x;
-			centerOffset.z = Mathf.Floor(player.position.z * sizeInv.y) *  size.z;
-			centerOffset.y = transform.position.y;
-			
-			if(transform.position != centerOffset)
-				transform.position = centerOffset;
-			
+		if(fint == fr1 || !spreadAlongFrames) {
+
+			float time=Time.time;
+
+			th0 = new Thread( () => { 
+				if(dynamicWaves) humidity = GetHumidity(time);
+				wind = humidity;
+				SetWaves(wind);
+				
+				for (int y = 0; y<height; y++) {
+					for (int x = 0; x<width; x++) {
+						int idx = width * y + x;
+						float yc = y < hhalf ? y : -height + y;
+						float xc = x < whalf ? x : -width + x;
+				
+						float vec_kx = pix2 * xc / size.x;
+						float vec_ky = pix2  * yc / size.z;
+
+						float sqrtMagnitude=(float)System.Math.Sqrt((vec_kx * vec_kx) + (vec_ky * vec_ky));
+						float iwkt = (float)System.Math.Sqrt(9.81f * sqrtMagnitude)  * time * speed;
+
+						ComplexF coeffA = new ComplexF ((float)System.Math.Cos(iwkt), (float)System.Math.Sin(iwkt));
+						ComplexF coeffB;
+
+						coeffB.Re = coeffA.Re;
+						coeffB.Im = -coeffA.Im;
+
+						int ny = y > 0 ? height - y : 0;
+						int nx = x > 0 ? width - x : 0;
+
+						data [idx] = h0 [idx] * coeffA + h0[width * ny + nx].GetConjugate() * coeffB;				
+						t_x [idx] = data [idx] * new ComplexF (0.0f, vec_kx) - data [idx] * vec_ky;
+
+						// Choppy wave calculations
+						if (x + y > 0)
+							data [idx] += data [idx] * vec_kx / sqrtMagnitude;
+					}
+				}
+			} );
+			th0.Start();
 		}
-		
 
-		float hhalf=height/2f;
-		float whalf=width/2f;
-		float time=Time.time;
-		for (int y = 0; y<height; y++) {
-			for (int x = 0; x<width; x++) {
-				int idx = width * y + x;
-				float yc = y < hhalf ? y : -height + y;
-				float xc = x < whalf ? x : -width + x;
-				Vector2 vec_k = new Vector2 (2.0f * Mathf.PI * xc / size.x, 2.0f * Mathf.PI * yc / size.z);
+		if(fint == fr2 || !spreadAlongFrames) {
+			if(th0 != null) { while(th0.IsAlive) {} }
+			th1 = new Thread( () => { 
+				Fourier.FFT2 (data, width, height, FourierDirection.Backward);
+				Fourier.FFT2 (t_x, width, height, FourierDirection.Backward);
+			} );
+			th1.Start();
+		}
 
-				float sqrtMagnitude=(float)System.Math.Sqrt((vec_k.x * vec_k.x) + (vec_k.y * vec_k.y));
-				float iwkt = (float)System.Math.Sqrt(9.81f * sqrtMagnitude) * time * speed;
-				ComplexF coeffA = new ComplexF ((float)System.Math.Cos(iwkt), (float)System.Math.Sin(iwkt));
-				ComplexF coeffB;
-				coeffB.Re = coeffA.Re;
-				coeffB.Im = -coeffA.Im;
 
-				int ny = y > 0 ? height - y : 0;
-				int nx = x > 0 ? width - x : 0;
 
-				data [idx] = h0 [idx] * coeffA + h0[width * ny + nx].GetConjugate() * coeffB;				
-				t_x [idx] = data [idx] * new ComplexF (0.0f, vec_k.x) - data [idx] * vec_k.y;
-
-				// Choppy wave calculations
-				if (x + y > 0)
-					data [idx] += data [idx] * vec_k.x / sqrtMagnitude;
+		if(fint == fr3 || !spreadAlongFrames) {
+			if(th1 != null) { while(th1.IsAlive) {} }
+			// Get base values for vertices and uv coordinates.
+			if (baseHeight == null) {
+				baseHeight = baseMesh.vertices;
+				vertices = new Vector3[baseHeight.Length];
+				normals = new Vector3[baseHeight.Length];
+				tangents = new Vector4[baseHeight.Length];
 			}
-		}
-
-		Fourier.FFT2 (data, width, height, FourierDirection.Backward);
-		Fourier.FFT2 (t_x, width, height, FourierDirection.Backward);
-
-		// Get base values for vertices and uv coordinates.
-		if (baseHeight == null) {
-			baseHeight = baseMesh.vertices;
-			vertices = new Vector3[baseHeight.Length];
-			normals = new Vector3[baseHeight.Length];
-			tangents = new Vector4[baseHeight.Length];
-		}
 		
-		int wh=width*height;
-		float scaleA = choppy_scale / wh;
-		float scaleB = waveScale / wh;
-		float scaleBinv = 1.0f / scaleB;
+			th2 = new Thread( () => { 
+				float scaleA = choppy_scale / wh;
+				float scaleB = waveScale / wh;
+				float scaleBinv = 1.0f / scaleB;
 	
-		for (int i=0; i<wh; i++) {
-			int iw = i + i / width;
-			vertices [iw] = baseHeight [iw];
-			vertices [iw].x += data [i].Im * scaleA;
-			vertices [iw].y = data [i].Re * scaleB;
+				for (int i=0; i<wh; i++) {
+					int iw = i + i / width;
+					vertices [iw] = baseHeight [iw];
+					vertices [iw].x += data [i].Im * scaleA;
+					vertices [iw].y = data [i].Re * scaleB;
 
-			normals [iw] = Vector3.Normalize(new Vector3 (t_x [i].Re, scaleBinv, t_x [i].Im));
+					normals [iw] = Vector3.Normalize(new Vector3 (t_x [i].Re, scaleBinv, t_x [i].Im));
 	
-			if (((i + 1) % width)==0) {
-				int iwi=iw+1;
-				int iwidth=i+1-width;
-				vertices [iwi] = baseHeight [iwi];
-				vertices [iwi].x += data [iwidth].Im * scaleA;
-				vertices [iwi].y = data [iwidth].Re * scaleB;
+					if (((i + 1) % width)==0) {
+						int iwi=iw+1;
+						int iwidth=i+1-width;
+						vertices [iwi] = baseHeight [iwi];
+						vertices [iwi].x += data [iwidth].Im * scaleA;
+						vertices [iwi].y = data [iwidth].Re * scaleB;
 
-				normals [iwi] = Vector3.Normalize(new Vector3 (t_x [iwidth].Re, scaleBinv, t_x [iwidth].Im));
+						normals [iwi] = Vector3.Normalize(new Vector3 (t_x [iwidth].Re, scaleBinv, t_x [iwidth].Im));
+					}
+				}
 
-			}
-		}
 
-		int offset = g_width * (g_height - 1);
-
-		for (int i=0; i<g_width; i++) {
-			int io=i+offset;
-			int mod=i % width;
-			vertices [io] = baseHeight [io];
-			vertices [io].x += data [mod].Im * scaleA;
-			vertices [io].y = data [mod].Re * scaleB;
+				for (int i=0; i<g_width; i++) {
+					int io=i+offset;
+					int mod=i % width;
+					vertices [io] = baseHeight [io];
+					vertices [io].x += data [mod].Im * scaleA;
+					vertices [io].y = data [mod].Re * scaleB;
 			
-			normals [io] = Vector3.Normalize(new Vector3 (t_x [mod].Re, scaleBinv, t_x [mod].Im));
-		}
+					normals [io] = Vector3.Normalize(new Vector3 (t_x [mod].Re, scaleBinv, t_x [mod].Im));
+				}
 	    
-		int gwgh=g_width*g_height-1;
-		for (int i=0; i<gwgh; i++) {
+		
+				for (int i=0; i<gwgh; i++) {
 			
-			//Need to preserve w in refraction/reflection mode
-			if (!reflectionRefractionEnabled) {
-				if (((i + 1) % g_width) == 0) {
-					tangents [i] = Vector3.Normalize((vertices [i - width + 1] + new Vector3 (size.x, 0.0f, 0.0f) - vertices [i]));
-				} else {
-					tangents [i] = Vector3.Normalize((vertices [i + 1] - vertices [i]));
-				}
+					//Need to preserve w in refraction/reflection mode
+					if (!reflectionRefractionEnabled) {
+						if (((i + 1) % g_width) == 0) {
+							tangents [i] = Vector3.Normalize((vertices [i - width + 1] + new Vector3 (size.x, 0.0f, 0.0f) - vertices [i]));
+						} else {
+							tangents [i] = Vector3.Normalize((vertices [i + 1] - vertices [i]));
+						}
 			
-				tangents [i].w = 1.0f;
-			} else {
-				Vector3 tmp;// = Vector3.zero;
+						tangents [i].w = 1.0f;
+					} else {
+						Vector3 tmp;// = Vector3.zero;
 			
-				if (((i + 1) % g_width) == 0) {
-					tmp = Vector3.Normalize(vertices[i - width + 1] + new Vector3 (size.x, 0.0f, 0.0f) - vertices [i]);
-				} else {
-					tmp = Vector3.Normalize(vertices [i + 1] - vertices [i]);
-				}
+						if (((i + 1) % g_width) == 0) {
+							tmp = Vector3.Normalize(vertices[i - width + 1] + new Vector3 (size.x, 0.0f, 0.0f) - vertices [i]);
+						} else {
+							tmp = Vector3.Normalize(vertices [i + 1] - vertices [i]);
+						}
 				
-				tangents [i] = new Vector4 (tmp.x, tmp.y, tmp.z, tangents [i].w);
+						tangents [i] = new Vector4 (tmp.x, tmp.y, tmp.z, tangents [i].w);
+					}
+				}
+			});
+			th2.Start();
+		}
+
+		if(fint == fr4 || !spreadAlongFrames) {	
+
+			if(th2 != null) { while(th2.IsAlive) {} }
+			
+			if (followMainCamera && player != null) {
+				centerOffset.x = Mathf.Floor(player.position.x * sizeInv.x) *  size.x;
+				centerOffset.z = Mathf.Floor(player.position.z * sizeInv.y) *  size.z;
+				centerOffset.y = transform.position.y;
+				if(transform.position != centerOffset) { ticked = true;  transform.position = centerOffset; }
+			}		
+		
+			//Vector3 playerRelPos =  player.position - transform.position;
+
+			//In reflection mode, use tangent w for foam strength
+			if (reflectionRefractionEnabled) {
+				float deltaTime = Time.deltaTime;
+				Vector3 playerPosition =  player.position;
+				Vector3 currentPosition = transform.position;
+
+				th3 = new Thread( () => { 
+					for (int y = 0; y < g_height; y++) {
+						for (int x = 0; x < g_width; x++) {
+							int item=x + g_width * y;
+							if (x + 1 >= g_width) {
+								tangents [item].w = tangents [g_width * y].w;
+					
+								continue;
+							}
+					
+							if (y + 1 >= g_height) {
+								tangents [item].w = tangents [x].w;
+						
+								continue;
+							}
+				
+							float right = vertices[(x + 1) + g_width * y].x - vertices[item].x;
+					
+							float foam = right/(size.x / g_width);
+					
+					
+							if (foam < 0.0f)
+								tangents [item].w = 1f;
+							else if (foam < 0.5f)
+								tangents [item].w += 3.0f * deltaTime;
+							else
+								tangents [item].w -= 0.4f * deltaTime;
+					
+							if (player != null ){
+								Vector3 player2Vertex = (playerPosition - vertices[item] - currentPosition);
+								// foam around boat
+								if (player2Vertex.x >= size.x)
+									player2Vertex.x -= size.x;
+						
+								if (player2Vertex.x<= -size.x)
+									player2Vertex.x += size.x;
+						
+								if (player2Vertex.z >= size.z)
+									player2Vertex.z -= size.z;
+						
+								if (player2Vertex.z<= -size.z)
+									player2Vertex.z += size.z;
+								player2Vertex.y = 0;
+						
+								if (player2Vertex.sqrMagnitude < wakeDistance * wakeDistance)
+									tangents[item].w += 3.0f * deltaTime;
+							}
+					
+					
+							tangents [item].w = Mathf.Clamp (tangents[item].w, 0.0f, 2.0f);
+						}
+					}
+				});
+				th3.Start();
+				while(th3.IsAlive) {}
+			}
+
+			tangents [gwgh] = Vector4.Normalize(vertices [gwgh] + new Vector3 (size.x, 0.0f, 0.0f) - vertices [1]);
+
+			for (int L0D=0; L0D<max_LOD; L0D++) {
+				int den = (int)System.Math.Pow (2f, L0D);
+				int itemcount = (int)((height / den + 1) * (width / den + 1));
+		
+				Vector4[] tangentsLOD = new Vector4[itemcount];
+				Vector3[] verticesLOD = new Vector3[itemcount];
+				Vector3[] normalsLOD = new Vector3[itemcount];
+	
+				int idx = 0;
+
+				for (int y=0; y<g_height; y+=den) {
+					for (int x=0; x<g_width; x+=den) {
+						int idx2 = g_width * y + x;
+						verticesLOD [idx] = vertices [idx2];
+						tangentsLOD [idx] = tangents [idx2];
+						normalsLOD [idx++] = normals [idx2];
+					}			
+				}
+				for (int k=0; k< tiles_LOD[L0D].Count; k++) {
+					//update mesh only if visible
+					if(!ticked) {
+						if(rtiles_LOD[L0D][k].isVisible) {
+							Mesh meshLOD = tiles_LOD [L0D][k];
+							meshLOD.vertices = verticesLOD;
+							meshLOD.normals = normalsLOD;
+							meshLOD.tangents = tangentsLOD;
+						}
+					} else {
+							Mesh meshLOD = tiles_LOD [L0D][k];
+							meshLOD.vertices = verticesLOD;
+							meshLOD.normals = normalsLOD;
+							meshLOD.tangents = tangentsLOD;
+					}
+				}	
+			}
+			if(ticked) ticked = false;
+		}
+	}
+
+	void updNoThreads() {
+
+		int fint = Time.frameCount % everyXframe;
+
+		if(fint == fr1 || !spreadAlongFrames) {
+			float time=Time.time;
+			if(dynamicWaves) humidity = GetHumidity(time);
+			wind = humidity;
+			SetWaves(wind);
+
+			
+			for (int y = 0; y<height; y++) {
+				for (int x = 0; x<width; x++) {
+					int idx = width * y + x;
+					float yc = y < hhalf ? y : -height + y;
+					float xc = x < whalf ? x : -width + x;
+				
+					float vec_kx = pix2 * xc / size.x;
+					float vec_ky = pix2  * yc / size.z;
+
+					float sqrtMagnitude=(float)System.Math.Sqrt((vec_kx * vec_kx) + (vec_ky * vec_ky));
+					float iwkt = (float)System.Math.Sqrt(9.81f * sqrtMagnitude)  * time * speed;
+
+					ComplexF coeffA = new ComplexF ((float)System.Math.Cos(iwkt), (float)System.Math.Sin(iwkt));
+					ComplexF coeffB;
+
+					coeffB.Re = coeffA.Re;
+					coeffB.Im = -coeffA.Im;
+
+					int ny = y > 0 ? height - y : 0;
+					int nx = x > 0 ? width - x : 0;
+
+					data [idx] = h0 [idx] * coeffA + h0[width * ny + nx].GetConjugate() * coeffB;				
+					t_x [idx] = data [idx] * new ComplexF (0.0f, vec_kx) - data [idx] * vec_ky;
+
+					// Choppy wave calculations
+					if (x + y > 0)
+						data [idx] += data [idx] * vec_kx / sqrtMagnitude;
+				}
 			}
 		}
+
+		if(fint == fr2 || !spreadAlongFrames) {
+			Fourier.FFT2 (data, width, height, FourierDirection.Backward);
+			Fourier.FFT2 (t_x, width, height, FourierDirection.Backward);
+		}
+
+		if(fint == fr3 || !spreadAlongFrames) {
+			// Get base values for vertices and uv coordinates.
+			if (baseHeight == null) {
+				baseHeight = baseMesh.vertices;
+				vertices = new Vector3[baseHeight.Length];
+				normals = new Vector3[baseHeight.Length];
+				tangents = new Vector4[baseHeight.Length];
+			}
 		
+			float scaleA = choppy_scale / wh;
+			float scaleB = waveScale / wh;
+			float scaleBinv = 1.0f / scaleB;
+	
+			for (int i=0; i<wh; i++) {
+				int iw = i + i / width;
+				vertices [iw] = baseHeight [iw];
+				vertices [iw].x += data [i].Im * scaleA;
+				vertices [iw].y = data [i].Re * scaleB;
+
+				normals [iw] = Vector3.Normalize(new Vector3 (t_x [i].Re, scaleBinv, t_x [i].Im));
+	
+				if (((i + 1) % width)==0) {
+					int iwi=iw+1;
+					int iwidth=i+1-width;
+					vertices [iwi] = baseHeight [iwi];
+					vertices [iwi].x += data [iwidth].Im * scaleA;
+					vertices [iwi].y = data [iwidth].Re * scaleB;
+
+					normals [iwi] = Vector3.Normalize(new Vector3 (t_x [iwidth].Re, scaleBinv, t_x [iwidth].Im));
+				}
+			}
+
+
+			for (int i=0; i<g_width; i++) {
+				int io=i+offset;
+				int mod=i % width;
+				vertices [io] = baseHeight [io];
+				vertices [io].x += data [mod].Im * scaleA;
+				vertices [io].y = data [mod].Re * scaleB;
+			
+				normals [io] = Vector3.Normalize(new Vector3 (t_x [mod].Re, scaleBinv, t_x [mod].Im));
+			}
+	    
 		
-		
-		//Vector3 playerRelPos =  player.position - transform.position;
-		
-		//In reflection mode, use tangent w for foam strength
-		if (reflectionRefractionEnabled) {
-			for (int y = 0; y < g_height; y++) {
-				for (int x = 0; x < g_width; x++) {
-					int item=x + g_width * y;
-					if (x + 1 >= g_width) {
-						tangents [item].w = tangents [g_width * y].w;
-					
-						continue;
+			for (int i=0; i<gwgh; i++) {
+			
+				//Need to preserve w in refraction/reflection mode
+				if (!reflectionRefractionEnabled) {
+					if (((i + 1) % g_width) == 0) {
+						tangents [i] = Vector3.Normalize((vertices [i - width + 1] + new Vector3 (size.x, 0.0f, 0.0f) - vertices [i]));
+					} else {
+						tangents [i] = Vector3.Normalize((vertices [i + 1] - vertices [i]));
 					}
-					
-					if (y + 1 >= g_height) {
-						tangents [item].w = tangents [x].w;
-						
-						continue;
+			
+					tangents [i].w = 1.0f;
+				} else {
+					Vector3 tmp;// = Vector3.zero;
+			
+					if (((i + 1) % g_width) == 0) {
+						tmp = Vector3.Normalize(vertices[i - width + 1] + new Vector3 (size.x, 0.0f, 0.0f) - vertices [i]);
+					} else {
+						tmp = Vector3.Normalize(vertices [i + 1] - vertices [i]);
 					}
 				
-					float right = vertices[(x + 1) + g_width * y].x - vertices[item].x;
-					
-					float foam = right/(size.x / g_width);
-					
-					
-					if (foam < 0.0f)
-						tangents [item].w = 1f;
-					else if (foam < 0.5f)
-						tangents [item].w += 3.0f * Time.deltaTime;
-					else
-						tangents [item].w -= 0.4f * Time.deltaTime;
-					
-					if (player != null )
-					{
-						Vector3 player2Vertex = (player.position - vertices[item] - transform.position);
-						// foam around boat
-						if (player2Vertex.x >= size.x)
-							player2Vertex.x -= size.x;
-						
-						if (player2Vertex.x<= -size.x)
-							player2Vertex.x += size.x;
-						
-						if (player2Vertex.z >= size.z)
-							player2Vertex.z -= size.z;
-						
-						if (player2Vertex.z<= -size.z)
-							player2Vertex.z += size.z;
-						player2Vertex.y = 0;
-						
-						if (player2Vertex.sqrMagnitude < wakeDistance * wakeDistance)
-							tangents[item].w += 3.0f * Time.deltaTime;
-
-					}
-					
-					
-					tangents [item].w = Mathf.Clamp (tangents[item].w, 0.0f, 2.0f);
+					tangents [i] = new Vector4 (tmp.x, tmp.y, tmp.z, tangents [i].w);
 				}
 			}
+
 		}
-	
-		tangents [gwgh] = Vector4.Normalize(vertices [gwgh] + new Vector3 (size.x, 0.0f, 0.0f) - vertices [1]);
 
-		for (int L0D=0; L0D<max_LOD; L0D++) {
-			int den = (int)System.Math.Pow (2f, L0D);
-			int itemcount = (int)((height / den + 1) * (width / den + 1));
+		if(fint == fr4 || !spreadAlongFrames) {	
+			
+			if (followMainCamera && player != null) {
+				centerOffset.x = Mathf.Floor(player.position.x * sizeInv.x) *  size.x;
+				centerOffset.z = Mathf.Floor(player.position.z * sizeInv.y) *  size.z;
+				centerOffset.y = transform.position.y;
+				if(transform.position != centerOffset) { ticked = true;  transform.position = centerOffset; }
+			}		
 		
-			Vector4[] tangentsLOD = new Vector4[itemcount];
-			Vector3[] verticesLOD = new Vector3[itemcount];
-			Vector3[] normalsLOD = new Vector3[itemcount];
-	
-			int idx = 0;
+			//Vector3 playerRelPos =  player.position - transform.position;
 
-			for (int y=0; y<g_height; y+=den) {
-				for (int x=0; x<g_width; x+=den) {
-					int idx2 = g_width * y + x;
-					verticesLOD [idx] = vertices [idx2];
-					tangentsLOD [idx] = tangents [idx2];
-					normalsLOD [idx++] = normals [idx2];
-				}			
-			}
-			for (int k=0; k< tiles_LOD[L0D].Count; k++) {
-				//update mesh only if visible
-				if(rtiles_LOD[L0D][k].isVisible) {
-					Mesh meshLOD = tiles_LOD [L0D][k];
-					meshLOD.vertices = verticesLOD;
-					meshLOD.normals = normalsLOD;
-					meshLOD.tangents = tangentsLOD;
+			//In reflection mode, use tangent w for foam strength
+			if (reflectionRefractionEnabled) {
+				float deltaTime = Time.deltaTime;
+				Vector3 playerPosition =  player.position;
+				Vector3 currentPosition = transform.position;
+
+				for (int y = 0; y < g_height; y++) {
+					for (int x = 0; x < g_width; x++) {
+						int item=x + g_width * y;
+						if (x + 1 >= g_width) {
+							tangents [item].w = tangents [g_width * y].w;
+					
+							continue;
+						}
+					
+						if (y + 1 >= g_height) {
+							tangents [item].w = tangents [x].w;
+						
+							continue;
+						}
+				
+						float right = vertices[(x + 1) + g_width * y].x - vertices[item].x;
+					
+						float foam = right/(size.x / g_width);
+					
+					
+						if (foam < 0.0f)
+							tangents [item].w = 1f;
+						else if (foam < 0.5f)
+							tangents [item].w += 3.0f * deltaTime;
+						else
+							tangents [item].w -= 0.4f * deltaTime;
+					
+						if (player != null )
+						{
+							Vector3 player2Vertex = (playerPosition - vertices[item] - currentPosition);
+							// foam around boat
+							if (player2Vertex.x >= size.x)
+								player2Vertex.x -= size.x;
+						
+							if (player2Vertex.x<= -size.x)
+								player2Vertex.x += size.x;
+						
+							if (player2Vertex.z >= size.z)
+								player2Vertex.z -= size.z;
+						
+							if (player2Vertex.z<= -size.z)
+								player2Vertex.z += size.z;
+							player2Vertex.y = 0;
+						
+							if (player2Vertex.sqrMagnitude < wakeDistance * wakeDistance)
+								tangents[item].w += 3.0f * deltaTime;
+						}
+					
+						tangents [item].w = Mathf.Clamp (tangents[item].w, 0.0f, 2.0f);
+					}
 				}
-			}	
+
+			}
+
+			tangents [gwgh] = Vector4.Normalize(vertices [gwgh] + new Vector3 (size.x, 0.0f, 0.0f) - vertices [1]);
+
+			for (int L0D=0; L0D<max_LOD; L0D++) {
+				int den = (int)System.Math.Pow (2f, L0D);
+				int itemcount = (int)((height / den + 1) * (width / den + 1));
+		
+				Vector4[] tangentsLOD = new Vector4[itemcount];
+				Vector3[] verticesLOD = new Vector3[itemcount];
+				Vector3[] normalsLOD = new Vector3[itemcount];
+	
+				int idx = 0;
+
+				for (int y=0; y<g_height; y+=den) {
+					for (int x=0; x<g_width; x+=den) {
+						int idx2 = g_width * y + x;
+						verticesLOD [idx] = vertices [idx2];
+						tangentsLOD [idx] = tangents [idx2];
+						normalsLOD [idx++] = normals [idx2];
+					}			
+				}
+				for (int k=0; k< tiles_LOD[L0D].Count; k++) {
+					//update mesh only if visible
+					if(!ticked) {
+						if(rtiles_LOD[L0D][k].isVisible) {
+							Mesh meshLOD = tiles_LOD [L0D][k];
+							meshLOD.vertices = verticesLOD;
+							meshLOD.normals = normalsLOD;
+							meshLOD.tangents = tangentsLOD;
+						}
+					} else {
+							Mesh meshLOD = tiles_LOD [L0D][k];
+							meshLOD.vertices = verticesLOD;
+							meshLOD.normals = normalsLOD;
+							meshLOD.tangents = tangentsLOD;
+					}
+				}	
+			}
+			if(ticked) ticked = false;
 		}
 	}
 
